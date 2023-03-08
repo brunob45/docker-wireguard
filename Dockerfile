@@ -12,27 +12,13 @@ LABEL maintainer="aptalca"
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN \
-  echo "**** install dependencies ****" && \
+  echo "**** install build dependencies ****" && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     bc \
     build-essential \
-    dkms \
-    git \
-    gnupg \
-    ifupdown \
-    iproute2 \
-    iptables \
-    iputils-ping \
-    libc6 \
-    libelf-dev \
-    net-tools \
-    openresolv \
-    perl \
-    pkg-config \
-    qrencode && \
-  update-alternatives --set iptables /usr/sbin/iptables-legacy && \
-  echo "**** install wireguard-tools ****" && \
+    git && \
+  echo "**** build wireguard-tools ****" && \
   if [ -z ${WIREGUARD_RELEASE+x} ]; then \
     WIREGUARD_RELEASE=$(curl -sX GET "https://api.github.com/repos/WireGuard/wireguard-tools/tags" \
       | jq -r .[0].name); \
@@ -42,8 +28,7 @@ RUN \
   git clone --depth 1 --branch "${WIREGUARD_RELEASE}" https://git.zx2c4.com/wireguard-tools && \
   cd wireguard-tools && \
   sed -i 's|\[\[ $proto == -4 \]\] && cmd sysctl -q net\.ipv4\.conf\.all\.src_valid_mark=1|[[ $proto == -4 ]] \&\& [[ $(sysctl -n net.ipv4.conf.all.src_valid_mark) != 1 ]] \&\& cmd sysctl -q net.ipv4.conf.all.src_valid_mark=1|' src/wg-quick/linux.bash && \
-  make -C src -j$(nproc) && \
-  make -C src install
+  make -C src -j$(nproc)
 
 # create final image
 FROM ghcr.io/linuxserver/baseimage-ubuntu:jammy
@@ -63,6 +48,7 @@ RUN \
   echo "**** install dependencies ****" && \
   apt-get update && \
   apt-get install -y --no-install-recommends \
+    make \
     ifupdown \
     iproute2 \
     iptables \
@@ -75,6 +61,9 @@ RUN \
     pkg-config \
     qrencode && \
   update-alternatives --set iptables /usr/sbin/iptables-legacy && \
+  echo "**** install wireguard-tools ****" && \
+  cd /app/wireguard-tools && \
+  make -C src install && \
   echo "**** install CoreDNS ****" && \
   COREDNS_VERSION=$(curl -sX GET "https://api.github.com/repos/coredns/coredns/releases/latest" \
     | awk '/tag_name/{print $4;exit}' FS='[""]' | awk '{print substr($1,2); }') && \
